@@ -28,6 +28,9 @@ using std::chrono::duration_cast;
 #define NUM_CHANNELS		1
 
 #define WAV_HEADER_LEN		44
+
+const std::string wavCacheDir = "./speech_wav_cache/";
+
 ////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////
 
@@ -356,6 +359,15 @@ void SpeechOutputProc::SetSpeakCB(std::function<void(SpeechProcStatus)> callback
 ////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////
 
+void SpeechOutputProc::SetSmileCB(std::function<void(std::string)> callback)
+{
+	const std::lock_guard<std::mutex> lock(_mutex);
+	_smile_cb = callback;
+}
+
+////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////
+
 void SpeechOutputProc::Process()
 {
 	RCLCPP_INFO(rclcpp::get_logger("rclcpp"), "SpeechOutputProc::Process: %s", _text_to_speak.c_str());
@@ -375,7 +387,8 @@ void SpeechOutputProc::Process()
     }
     //cout << "MD5: " << sstr.str() << std::endl;
 
-    std::string fname = sstr.str();
+    std::string fname = wavCacheDir;
+	fname += sstr.str();
     fname += "_tts.wav";
 
     // Try to read cached speech
@@ -405,12 +418,12 @@ void SpeechOutputProc::Process()
     		if (_synthesizer_wrapper && _synthesizer_wrapper->_synthesizer != nullptr) {
     			RCLCPP_INFO(rclcpp::get_logger("rclcpp"), "Running speech synthesis");
 
-				result = _synthesizer_wrapper->_synthesizer->SpeakTextAsync(_text_to_speak).get();
+				result = _synthesizer_wrapper->_synthesizer->SpeakSsmlAsync(_text_to_speak).get();
 
 				if (result->Reason == ResultReason::SynthesizingAudioCompleted)
 				{
 					audio = result->GetAudioData();
-					RCLCPP_INFO(rclcpp::get_logger("rclcpp"), "Speech synthesized, size: %u", audio->size());
+					RCLCPP_INFO(rclcpp::get_logger("rclcpp"), "Speech synthesized, size: %lu", audio->size());
 
 					if (audio->size() > 0) {
 						audio_samples = audio->data();
@@ -428,7 +441,7 @@ void SpeechOutputProc::Process()
 				else if (result->Reason == ResultReason::Canceled)
 				{
 					auto cancellation = SpeechSynthesisCancellationDetails::FromResult(result);
-					RCLCPP_INFO(rclcpp::get_logger("rclcpp"), "ERROR: Synthesis cancelled, reason: %d", cancellation->Reason);
+					RCLCPP_INFO(rclcpp::get_logger("rclcpp"), "ERROR: Synthesis cancelled");
 					_speak_cb(SpeechProcStatus_Error);
 					return;
 				}
@@ -437,6 +450,8 @@ void SpeechOutputProc::Process()
 
 		// Play the file
 		int write_size = _audio_output->GetWriteSize();
+
+		_smile_cb("talking");
 
 		for (auto offset = 0; _run && offset < audio_num_bytes;) {
 			int to_write = write_size;
@@ -452,6 +467,8 @@ void SpeechOutputProc::Process()
 			offset += to_write;
 		}
 		_audio_output->WriteComplete();
+
+		_smile_cb("default");
 
 		if (buffer) {
 			delete[] buffer;

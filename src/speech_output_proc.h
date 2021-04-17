@@ -25,6 +25,7 @@ public:
 	SpeechProcStatus SpeakStart(std::string text);
 	SpeechProcStatus SpeakStop();
 	void SetSpeakCB(std::function<void(SpeechProcStatus)> callback);
+	void SetSmileCB(std::function<void(std::string)> callback);
 
 protected:
 	void Process();
@@ -35,6 +36,7 @@ private:
 	bool _run;
 	std::function<void(std::string)> _ww_cb;
 	std::function<void(SpeechProcStatus)> _speak_cb;
+	std::function<void(std::string)>_smile_cb;
 
 	SpeechSynthesizerWrapper *_synthesizer_wrapper;
 

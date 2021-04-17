@@ -18,6 +18,7 @@ endif()
 # find dependencies
 find_package(ament_cmake REQUIRED)
 find_package(speech_action_interfaces REQUIRED)
+find_package(face_control_interfaces REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(rclcpp_action REQUIRED)
 find_package(rclcpp_components REQUIRED)
@@ -33,6 +34,7 @@ target_include_directories(${client_library_name} PRIVATE
 
 ament_target_dependencies(${client_library_name}
   "speech_action_interfaces"
+  "face_control_interfaces"
   "rclcpp"
   "rclcpp_action"
   "rclcpp_components")
@@ -54,17 +56,28 @@ target_include_directories(${server_library_name} PRIVATE
   <BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   <INSTALL_INTERFACE:include>)
 
-# Fix
-include_directories(/home/ubuntu/ms_voice/speechsdk/include/cxx_api
-  /home/ubuntu/ms_voice/speechsdk/include/c_api)
-# Fix
-target_link_libraries(${server_library_name}
-  /home/ubuntu/ms_voice/speechsdk/lib/arm64/libMicrosoft.CognitiveServices.Speech.core.so
-  -lcrypto
-  -l:libasound.so.2)
+# Fix - use a better way to find these
+if( ${CMAKE_HOST_SYSTEM_PROCESSOR} STREQUAL "aarch64" )
+	# Rpi4
+	include_directories(/home/ubuntu/ms_voice/speechsdk/include/cxx_api
+	  /home/ubuntu/ms_voice/speechsdk/include/c_api)
+	target_link_libraries(${server_library_name}
+	  /home/ubuntu/ms_voice/speechsdk/lib/arm64/libMicrosoft.CognitiveServices.Speech.core.so
+	  -lcrypto
+	  -l:libasound.so.2)
+else()
+	#laptop
+	include_directories(/home/scott/ms_speech/speechsdk/include/cxx_api
+  	  /home/scott/ms_speech/speechsdk/include/c_api)
+	target_link_libraries(${server_library_name}
+  		/home/scott/ms_speech/speechsdk/lib/x64/libMicrosoft.CognitiveServices.Speech.core.so
+  		-lcrypto
+  		-l:libasound.so.2)
+endif()
 
 ament_target_dependencies(${server_library_name}
   "speech_action_interfaces"
+  "face_control_interfaces"
   "rclcpp"
   "rclcpp_action"
   "rclcpp_components")

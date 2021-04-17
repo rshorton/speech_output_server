@@ -2,6 +2,8 @@
 #include <memory>
 
 #include "speech_action_interfaces/action/speak.hpp"
+#include "face_control_interfaces/msg/smile.hpp"
+
 #include "rclcpp/rclcpp.hpp"
 #include "rclcpp_action/rclcpp_action.hpp"
 #include "std_msgs/msg/string.hpp"
@@ -25,6 +27,8 @@ public:
   {
     using namespace std::placeholders;
 
+    smile_publisher_ = this->create_publisher<face_control_interfaces::msg::Smile>("/smile", 2);
+
     this->action_server_ = rclcpp_action::create_server<Speak>(
       this,
       "speak",
@@ -35,6 +39,7 @@ public:
     speech_proc_ = new SpeechOutputProc();
     speech_proc_->Open();
     speech_proc_->SetSpeakCB(std::bind(&SpeechOutputActionServer::speech_finished, this, _1));
+    speech_proc_->SetSmileCB(std::bind(&SpeechOutputActionServer::set_smile_mode, this, _1));
   }
 
   void speech_finished(SpeechProcStatus status)
@@ -50,12 +55,25 @@ public:
 	  goal_handle_->succeed(result);
   }
 
+  void set_smile_mode(std::string mode)
+  {
+	  RCLCPP_INFO(this->get_logger(), "Set smile mode: %s", mode.c_str());
+	  auto message = face_control_interfaces::msg::Smile();
+      message.mode = mode;
+      message.level = 0;
+      message.duration_ms = 0;
+      message.use_as_default = false;
+      smile_publisher_->publish(message);
+  }
+
 private:
   rclcpp_action::Server<Speak>::SharedPtr action_server_;
 
   std::shared_ptr<GoalHandleSpeak> goal_handle_;
 
   SpeechOutputProc *speech_proc_;
+
+  rclcpp::Publisher<face_control_interfaces::msg::Smile>::SharedPtr smile_publisher_;
 
   rclcpp_action::GoalResponse handle_goal(
     const rclcpp_action::GoalUUID & uuid,
