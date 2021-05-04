@@ -318,6 +318,11 @@ SpeechProcStatus SpeechOutputProc::SpeakStart(std::string text)
 	// used for previous command (if any)
 	StopProcessing();
 
+	if (text.length() == 0) {
+		RCLCPP_ERROR(rclcpp::get_logger("rclcpp"), "Requested text string is empty");
+		return SpeechProcStatus_Ok;
+	}
+
 	_text_to_speak = text;
 
 	const std::lock_guard<std::mutex> lock(_mutex);

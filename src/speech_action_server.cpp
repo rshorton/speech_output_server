@@ -27,7 +27,7 @@ public:
   {
     using namespace std::placeholders;
 
-    smile_publisher_ = this->create_publisher<face_control_interfaces::msg::Smile>("/smile", 2);
+    smile_publisher_ = this->create_publisher<face_control_interfaces::msg::Smile>("/head/smile", 2);
 
     this->action_server_ = rclcpp_action::create_server<Speak>(
       this,
