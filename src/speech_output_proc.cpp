@@ -458,7 +458,25 @@ void SpeechOutputProc::Process()
 
 		_smile_cb("talking");
 
-		for (auto offset = 0; _run && offset < audio_num_bytes;) {
+		int offset;
+
+		// Chop off silence at the end to reduce delay between a spoken prompt
+		// and the start of listening.
+		//RCLCPP_INFO(rclcpp::get_logger("rclcpp"), "Removing silence at the end of audio.");
+		int16_t *pSamples = (int16_t*)audio_samples;
+
+		for (offset = audio_num_bytes/2 - 1; offset >= 0; offset--) {
+			if (abs(pSamples[offset]) > 0xa) {
+				break;
+			}
+		}
+
+		//RCLCPP_INFO(rclcpp::get_logger("rclcpp"), "Original length= %d, New %d.", audio_num_bytes, offset*2);
+
+
+		audio_num_bytes = offset*2;
+
+		for (offset = 0; _run && offset < audio_num_bytes;) {
 			int to_write = write_size;
 			if (audio_num_bytes - offset < to_write) {
 				to_write = audio_num_bytes - offset;

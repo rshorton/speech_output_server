@@ -79,6 +79,9 @@ private:
     const rclcpp_action::GoalUUID & uuid,
     std::shared_ptr<const Speak::Goal> goal)
   {
+
+	//std::cout << "Received goal request with text: " << goal->text << std::endl;
+
     RCLCPP_INFO(this->get_logger(), "Received goal request with text [%s]", goal->text.c_str());
     (void)uuid;
     return rclcpp_action::GoalResponse::ACCEPT_AND_EXECUTE;
