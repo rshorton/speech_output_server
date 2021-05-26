@@ -28,6 +28,7 @@ public:
     using namespace std::placeholders;
 
     smile_publisher_ = this->create_publisher<face_control_interfaces::msg::Smile>("/head/smile", 2);
+    speech_active_publisher_ = this->create_publisher<std_msgs::msg::Bool>("/head/speaking", 2);
 
     this->action_server_ = rclcpp_action::create_server<Speak>(
       this,
@@ -40,6 +41,7 @@ public:
     speech_proc_->Open();
     speech_proc_->SetSpeakCB(std::bind(&SpeechOutputActionServer::speech_finished, this, _1));
     speech_proc_->SetSmileCB(std::bind(&SpeechOutputActionServer::set_smile_mode, this, _1));
+    speech_proc_->SetSpeechActiveCB(std::bind(&SpeechOutputActionServer::set_speaking_active, this, _1));
   }
 
   void speech_finished(SpeechProcStatus status)
@@ -66,6 +68,14 @@ public:
       smile_publisher_->publish(message);
   }
 
+  void set_speaking_active(bool bSpeaking)
+  {
+	  RCLCPP_INFO(this->get_logger(), "Set speaking: %d", bSpeaking);
+	  auto message = std_msgs::msg::Bool();
+      message.data = bSpeaking;
+      speech_active_publisher_->publish(message);
+  }
+
 private:
   rclcpp_action::Server<Speak>::SharedPtr action_server_;
 
@@ -74,6 +84,7 @@ private:
   SpeechOutputProc *speech_proc_;
 
   rclcpp::Publisher<face_control_interfaces::msg::Smile>::SharedPtr smile_publisher_;
+  rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr speech_active_publisher_;
 
   rclcpp_action::GoalResponse handle_goal(
     const rclcpp_action::GoalUUID & uuid,

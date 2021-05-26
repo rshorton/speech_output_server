@@ -373,6 +373,15 @@ void SpeechOutputProc::SetSmileCB(std::function<void(std::string)> callback)
 ////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////
 
+void SpeechOutputProc::SetSpeechActiveCB(std::function<void(bool)> callback)
+{
+	const std::lock_guard<std::mutex> lock(_mutex);
+	_speech_active_cb = callback;
+}
+
+////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////
+
 void SpeechOutputProc::Process()
 {
 	RCLCPP_INFO(rclcpp::get_logger("rclcpp"), "SpeechOutputProc::Process: %s", _text_to_speak.c_str());
@@ -456,7 +465,8 @@ void SpeechOutputProc::Process()
 		// Play the file
 		int write_size = _audio_output->GetWriteSize();
 
-		_smile_cb("talking");
+//		_smile_cb("talking");
+		_speech_active_cb(true);
 
 		int offset;
 
@@ -472,7 +482,6 @@ void SpeechOutputProc::Process()
 		}
 
 		//RCLCPP_INFO(rclcpp::get_logger("rclcpp"), "Original length= %d, New %d.", audio_num_bytes, offset*2);
-
 
 		audio_num_bytes = offset*2;
 
@@ -491,7 +500,8 @@ void SpeechOutputProc::Process()
 		}
 		_audio_output->WriteComplete();
 
-		_smile_cb("default");
+		_speech_active_cb(false);
+//		_smile_cb("default");
 
 		if (buffer) {
 			delete[] buffer;
