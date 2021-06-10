@@ -46,6 +46,11 @@ install(TARGETS
   LIBRARY DESTINATION lib
   RUNTIME DESTINATION bin)
 
+install(DIRECTORY
+  launch
+  DESTINATION share/${PROJECT_NAME}
+)
+
 set(server_library_name speech_output_server)
 
 add_library(${server_library_name} SHARED
