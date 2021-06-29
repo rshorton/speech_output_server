@@ -31,6 +31,7 @@ public:
 protected:
 	void Process();
 	void StopProcessing();
+	int FindCard(const std::string cardName);
 
 private:
 	bool _open;
@@ -40,9 +41,9 @@ private:
 	std::function<void(std::string)>_smile_cb;
 	std::function<void(bool)>_speech_active_cb;
 
-	SpeechSynthesizerWrapper *_synthesizer_wrapper;
+	std::unique_ptr<SpeechSynthesizerWrapper> _synthesizer_wrapper;
 
-	AudioOutput *_audio_output;
+	std::unique_ptr<AudioOutput> _audio_output;
 
 	std::thread _proc_thread;
 	std::mutex _mutex;

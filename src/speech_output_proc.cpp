@@ -6,7 +6,10 @@
 
 #include <speechapi_cxx.h>
 
-#include <alsa/asoundlib.h>
+#include <pulse/simple.h>
+#include <pulse/error.h>
+#include <pulse/gccmacro.h>
+
 #include <openssl/md5.h>
 
 #include "rclcpp/rclcpp.hpp"
@@ -22,10 +25,9 @@ using std::chrono::milliseconds;
 using std::chrono::seconds;
 using std::chrono::duration_cast;
 
-#define AUDIO_DEVICE 		"hw:0"
 #define SAMPLE_RATE         16000       // input sampling rate (filters assume this rate)
 #define SAMPLE_BITS         16          // 16 bits per sample is the max size for the PDM MIC input
-#define NUM_CHANNELS		1
+#define NUM_CHANNELS		1			// 1 channel
 
 #define WAV_HEADER_LEN		44
 
@@ -38,8 +40,7 @@ class AudioOutput
 {
 public:
 	AudioOutput():
-		_handle(NULL),
-		_period_size_frames(0)
+		_handle(NULL)
 	{
 	}
 
@@ -51,69 +52,24 @@ public:
 	////////////////////////////////////////////////////////////////////////
 	////////////////////////////////////////////////////////////////////////
 
-	int Open(const char* pDevice)
+	int Open()
 	{
 		if (_handle) {
 			return -1;
 		}
 
+	    pa_sample_spec ss;
+	    ss.format = PA_SAMPLE_S16LE;
+	    ss.rate = SAMPLE_RATE;
+	    ss.channels = NUM_CHANNELS;
+
 		int err = -1;
 
-		do {
-			/* Open the PCM device in playback mode */
-			if ((err = snd_pcm_open(&_handle, AUDIO_DEVICE, SND_PCM_STREAM_PLAYBACK, 0)) < 0) {
-				RCLCPP_INFO(rclcpp::get_logger("rclcpp"), "ERROR; Can't open [%s] PCM device. %s",
-						AUDIO_DEVICE, snd_strerror(err));
-				break;
-			}
-
-			snd_pcm_hw_params_t *params;
-
-			/* Allocate parameters object and fill it with default values*/
-			snd_pcm_hw_params_alloca(&params);
-
-			snd_pcm_hw_params_any(_handle, params);
-
-			/* Set parameters */
-			if ((err = snd_pcm_hw_params_set_access(_handle, params,
-							SND_PCM_ACCESS_RW_INTERLEAVED)) < 0) {
-				RCLCPP_INFO(rclcpp::get_logger("rclcpp"), "ERROR; Can't set interleaved mode. %s", snd_strerror(err));
-				break;
-			}
-
-			if ((err = snd_pcm_hw_params_set_format(_handle, params,
-								SND_PCM_FORMAT_S16_LE)) < 0) {
-				RCLCPP_INFO(rclcpp::get_logger("rclcpp"), "ERROR; Can't set format. %s", snd_strerror(err));
-				break;
-			}
-
-			if ((err = snd_pcm_hw_params_set_channels(_handle, params, NUM_CHANNELS)) < 0) {
-				RCLCPP_INFO(rclcpp::get_logger("rclcpp"), "ERROR; Can't set channels number. %s", snd_strerror(err));
-				break;
-			}
-
-			unsigned int rate = SAMPLE_RATE;
-			if ((err = snd_pcm_hw_params_set_rate_near(_handle, params, &rate, 0)) < 0) {
-				RCLCPP_INFO(rclcpp::get_logger("rclcpp"), "ERROR; Can't set rate. %s", snd_strerror(err));
-				break;
-			}
-
-			/* Write parameters */
-			if ((err = snd_pcm_hw_params(_handle, params)) < 0) {
-				RCLCPP_INFO(rclcpp::get_logger("rclcpp"), "ERROR; Can't set harware parameters. %s", snd_strerror(err));
-				break;
-			}
-
-			snd_pcm_hw_params_get_period_size(params, &_period_size_frames, 0);
-			return 0;
-
-		} while(0);
-
-		if (_handle) {
-			snd_pcm_close(_handle);
-			_handle = NULL;
+		if (!(_handle = pa_simple_new(NULL, "speech_output_server", PA_STREAM_PLAYBACK, NULL, "playback", &ss, NULL, NULL, &err))) {
+			RCLCPP_INFO(rclcpp::get_logger("rclcpp"), "ERROR; Can't open pulseaudio for output. %s", pa_strerror(err));
+			return err;
 		}
-		return err;
+		return 0;
 	}
 
 	////////////////////////////////////////////////////////////////////////
@@ -122,7 +78,7 @@ public:
 	int Close()
 	{
 		if (_handle) {
-			snd_pcm_close(_handle);
+			pa_simple_free(_handle);
 			_handle = NULL;
 		}
 		return 0;
@@ -131,47 +87,33 @@ public:
 	////////////////////////////////////////////////////////////////////////
 	////////////////////////////////////////////////////////////////////////
 
-	int GetWriteSize()
-	{
-		if (_period_size_frames == 0) {
-			_period_size_frames = 1024;
-		}
-		return _period_size_frames * (NUM_CHANNELS*SAMPLE_BITS/8);
-	}
-
-	////////////////////////////////////////////////////////////////////////
-	////////////////////////////////////////////////////////////////////////
-
 	void WriteComplete()
 	{
 		if (_handle) {
-			snd_pcm_drain(_handle);
+			int error;
+			pa_simple_drain(_handle, &error);
 		}
 	}
 
 	////////////////////////////////////////////////////////////////////////
 	////////////////////////////////////////////////////////////////////////
 
-	int WriteBlock(uint8_t* buffer, int num_bytes)
+	int WriteBlock(uint8_t* buffer, size_t num_bytes)
 	{
 		int err = -1;
 		if (!_handle) {
 			return -1;
 		}
 
-		int frames = num_bytes/(NUM_CHANNELS*SAMPLE_BITS/8);
-		if ((err = snd_pcm_writei(_handle, buffer, frames)) == -EPIPE) {
-			snd_pcm_prepare(_handle);
-		} else if (err < 0) {
-			RCLCPP_INFO(rclcpp::get_logger("rclcpp"), "ERROR; Can't write to PCM device. %s\n", snd_strerror(err));
+		if (pa_simple_write(_handle, buffer, num_bytes, &err) < 0) {
+			RCLCPP_INFO(rclcpp::get_logger("rclcpp"), "ERROR; Can't write to PulseAudio device. %s\n", pa_strerror(err));
 			return err;
 		}
 		return 0;
 	}
 
 private:
-	snd_pcm_t *_handle;
-	snd_pcm_uframes_t _period_size_frames;
+	pa_simple *_handle;
 };
 
 ////////////////////////////////////////////////////////////////////////
@@ -242,18 +184,13 @@ private:
 
 SpeechOutputProc::SpeechOutputProc():
 		_open(false),
-		_run(false),
-		_synthesizer_wrapper(NULL),
-		_audio_output(nullptr)
+		_run(false)
 {
 }
 
 SpeechOutputProc::~SpeechOutputProc()
 {
 	Close();
-	if (_synthesizer_wrapper) {
-		delete _synthesizer_wrapper;
-	}
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -265,11 +202,12 @@ SpeechProcStatus SpeechOutputProc::Open()
 		return SpeechProcStatus_Error;
 	}
 
-	_audio_output = new AudioOutput();
+	_audio_output = std::make_unique<AudioOutput>();
 
-	int ret = _audio_output->Open(AUDIO_DEVICE);
+	int ret = _audio_output->Open();
 	if (ret) {
-		RCLCPP_INFO(rclcpp::get_logger("rclcpp"), "ERROR; Could not open audio output device (%s)\n", snd_strerror(ret));
+		RCLCPP_INFO(rclcpp::get_logger("rclcpp"), "ERROR; Could not open audio output device (%s)\n", pa_strerror(ret));
+		_audio_output.reset();
         return SpeechProcStatus_Error;
 	}
 	return SpeechProcStatus_Ok;
@@ -286,10 +224,9 @@ SpeechProcStatus SpeechOutputProc::Close()
 
 	StopProcessing();
 
-	if (_audio_output) {
+	if (_audio_output != nullptr) {
 		_audio_output->Close();
-		delete _audio_output;
-		_audio_output = NULL;
+		_audio_output.reset();
 	}
 	_open = false;
 	return SpeechProcStatus_Ok;
@@ -326,12 +263,13 @@ SpeechProcStatus SpeechOutputProc::SpeakStart(std::string text)
 	_text_to_speak = text;
 
 	const std::lock_guard<std::mutex> lock(_mutex);
-	if (!_synthesizer_wrapper) {
-		_synthesizer_wrapper = new SpeechSynthesizerWrapper();
+	if (_synthesizer_wrapper == nullptr) {
+		_synthesizer_wrapper = std::make_unique<SpeechSynthesizerWrapper>();
 	}
 	if (!_synthesizer_wrapper->isOpen()) {
 		if (_synthesizer_wrapper->Open() != SpeechSynthesisStatus_Ok) {
 			RCLCPP_ERROR(rclcpp::get_logger("rclcpp"), "Failed to open speech synthesizer");
+			_synthesizer_wrapper.reset();
 			return SpeechProcStatus_Error;
 		}
 	}
@@ -390,6 +328,7 @@ void SpeechOutputProc::Process()
 	int audio_num_bytes = 0;
 	// Locally allocated buffer
 	char* buffer = NULL;
+	int16_t* buffer2chan = NULL;
 
 	// Calc md5 over text to use a filename for cached speech file
 	unsigned char md5[MD5_DIGEST_LENGTH];
@@ -415,10 +354,8 @@ void SpeechOutputProc::Process()
     	file.close();
 
     	audio_samples = (uint8_t*)buffer;
-    	if (size > WAV_HEADER_LEN) {
-    		audio_num_bytes = (int)size - WAV_HEADER_LEN;
-    		RCLCPP_INFO(rclcpp::get_logger("rclcpp"), "Read cached speech: %s, size %d", fname.c_str(), audio_num_bytes);
-    	}
+    	audio_num_bytes = (int)size;
+		RCLCPP_INFO(rclcpp::get_logger("rclcpp"), "Read cached speech: %s, size %d", fname.c_str(), audio_num_bytes);
     }
 
 	const std::lock_guard<std::mutex> lock(_mutex);
@@ -429,7 +366,7 @@ void SpeechOutputProc::Process()
 
     if (_run) {
     	if (audio_num_bytes == 0) {
-    		if (_synthesizer_wrapper && _synthesizer_wrapper->_synthesizer != nullptr) {
+    		if (_synthesizer_wrapper != nullptr && _synthesizer_wrapper->_synthesizer != nullptr) {
     			RCLCPP_INFO(rclcpp::get_logger("rclcpp"), "Running speech synthesis");
 
 				result = _synthesizer_wrapper->_synthesizer->SpeakSsmlAsync(_text_to_speak).get();
@@ -443,7 +380,7 @@ void SpeechOutputProc::Process()
 						audio_samples = audio->data();
 						audio_num_bytes = audio->size();
 
-						// Cache the audio
+						// Cache the audio to a file to avoid needing to convert this same text in the future
 						auto stream = AudioDataStream::FromResult(result);
 						stream->SaveToWavFileAsync(fname).get();
 					} else {
@@ -462,50 +399,46 @@ void SpeechOutputProc::Process()
     		}
     	}
 
-		// Play the file
-		int write_size = _audio_output->GetWriteSize();
-
-//		_smile_cb("talking");
-		_speech_active_cb(true);
-
-		int offset;
+    	// Skip past WAV header
+    	if (audio_num_bytes > WAV_HEADER_LEN) {
+    		audio_num_bytes -= WAV_HEADER_LEN;
+    		audio_samples += WAV_HEADER_LEN;
+    	}
 
 		// Chop off silence at the end to reduce delay between a spoken prompt
 		// and the start of listening.
 		//RCLCPP_INFO(rclcpp::get_logger("rclcpp"), "Removing silence at the end of audio.");
 		int16_t *pSamples = (int16_t*)audio_samples;
+		int numSamples = audio_num_bytes/2;
 
-		for (offset = audio_num_bytes/2 - 1; offset >= 0; offset--) {
+		int offset;
+		for (offset = numSamples - 1; offset >= 0; offset--) {
 			if (abs(pSamples[offset]) > 0xa) {
 				break;
 			}
 		}
 
-		//RCLCPP_INFO(rclcpp::get_logger("rclcpp"), "Original length= %d, New %d.", audio_num_bytes, offset*2);
+		// Play the file...
+		_speech_active_cb(true);
 
-		audio_num_bytes = offset*2;
-
-		for (offset = 0; _run && offset < audio_num_bytes;) {
-			int to_write = write_size;
-			if (audio_num_bytes - offset < to_write) {
-				to_write = audio_num_bytes - offset;
-			}
-			//RCLCPP_INFO(rclcpp::get_logger("rclcpp"), "Writing audio sample: %d bytes, offset: %u",
-			//		to_write, offset);
-
-			if (_audio_output->WriteBlock(audio_samples + offset, to_write) < 0) {
-				break;
-			}
-			offset += to_write;
-		}
+		_audio_output->WriteBlock(audio_samples, offset*2);
 		_audio_output->WriteComplete();
 
+		RCLCPP_INFO(rclcpp::get_logger("rclcpp"), "2");
+
 		_speech_active_cb(false);
-//		_smile_cb("default");
+
+		RCLCPP_INFO(rclcpp::get_logger("rclcpp"), "3");
 
 		if (buffer) {
 			delete[] buffer;
 		}
+		if (buffer2chan) {
+			delete[] buffer2chan;
+		}
+
+		RCLCPP_INFO(rclcpp::get_logger("rclcpp"), "4");
+
 	}
 	// Was cancelled if !_run
 	_speak_cb(_run? SpeechProcStatus_Ok: SpeechProcStatus_Error);

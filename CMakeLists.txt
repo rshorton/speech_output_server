@@ -69,7 +69,7 @@ if( ${CMAKE_HOST_SYSTEM_PROCESSOR} STREQUAL "aarch64" )
 	target_link_libraries(${server_library_name}
 	  /home/ubuntu/ms_voice/speechsdk/lib/arm64/libMicrosoft.CognitiveServices.Speech.core.so
 	  -lcrypto
-	  -l:libasound.so.2)
+	  -lpulse-simple -lpulse)
 else()
 	#laptop
 	include_directories(/home/scott/ms_speech/speechsdk/include/cxx_api
