@@ -18,7 +18,7 @@ endif()
 # find dependencies
 find_package(ament_cmake REQUIRED)
 find_package(speech_action_interfaces REQUIRED)
-find_package(face_control_interfaces REQUIRED)
+find_package(robot_head_interfaces REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(rclcpp_action REQUIRED)
 find_package(rclcpp_components REQUIRED)
@@ -34,7 +34,7 @@ target_include_directories(${client_library_name} PRIVATE
 
 ament_target_dependencies(${client_library_name}
   "speech_action_interfaces"
-  "face_control_interfaces"
+  "robot_head_interfaces"
   "rclcpp"
   "rclcpp_action"
   "rclcpp_components")
@@ -82,7 +82,7 @@ endif()
 
 ament_target_dependencies(${server_library_name}
   "speech_action_interfaces"
-  "face_control_interfaces"
+  "robot_head_interfaces"
   "rclcpp"
   "rclcpp_action"
   "rclcpp_components")

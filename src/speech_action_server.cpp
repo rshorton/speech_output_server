@@ -1,8 +1,24 @@
+/*
+Copyright 2021 Scott Horton
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 #include <functional>
 #include <memory>
 
 #include "speech_action_interfaces/action/speak.hpp"
-#include "face_control_interfaces/msg/smile.hpp"
+#include "robot_head_interfaces/msg/smile.hpp"
 
 #include "rclcpp/rclcpp.hpp"
 #include "rclcpp_action/rclcpp_action.hpp"
@@ -27,7 +43,7 @@ public:
   {
     using namespace std::placeholders;
 
-    smile_publisher_ = this->create_publisher<face_control_interfaces::msg::Smile>("/head/smile", 2);
+    smile_publisher_ = this->create_publisher<robot_head_interfaces::msg::Smile>("/head/smile", 2);
     speech_active_publisher_ = this->create_publisher<std_msgs::msg::Bool>("/head/speaking", 2);
 
     this->action_server_ = rclcpp_action::create_server<Speak>(
@@ -60,7 +76,7 @@ public:
   void set_smile_mode(std::string mode)
   {
 	  RCLCPP_INFO(this->get_logger(), "Set smile mode: %s", mode.c_str());
-	  auto message = face_control_interfaces::msg::Smile();
+	  auto message = robot_head_interfaces::msg::Smile();
       message.mode = mode;
       message.level = 0;
       message.duration_ms = 0;
@@ -83,7 +99,7 @@ private:
 
   SpeechOutputProc *speech_proc_;
 
-  rclcpp::Publisher<face_control_interfaces::msg::Smile>::SharedPtr smile_publisher_;
+  rclcpp::Publisher<robot_head_interfaces::msg::Smile>::SharedPtr smile_publisher_;
   rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr speech_active_publisher_;
 
   rclcpp_action::GoalResponse handle_goal(
