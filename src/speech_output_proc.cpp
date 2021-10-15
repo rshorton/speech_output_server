@@ -46,6 +46,7 @@ using std::chrono::duration_cast;
 
 #define WAV_HEADER_LEN		44
 
+// Fix - create the directory if it doesn't exist
 const std::string wavCacheDir = "./speech_wav_cache/";
 
 ////////////////////////////////////////////////////////////////////////
