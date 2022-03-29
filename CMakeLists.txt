@@ -1,6 +1,14 @@
 cmake_minimum_required(VERSION 3.5)
 project(speech_output_server)
 
+# Set MS_SPEECH_SDK_PATH env var to point to ms voice sdk
+# ex:  export MS_SPEECH_SDK_PATH=/home/scott/ms_speech/speechsdk
+if(DEFINED ENV{SPEECH_SDK_PATH})
+  message(STATUS "SPEECH_SDK_PATH= $ENV{SPEECH_SDK_PATH}")
+else()
+  message(FATAL_ERROR "Please create env var SPEECH_SDK_PATH and set to path of MS SPEECH SDK directory.")
+endif()
+
 # Default to C99
 if(NOT CMAKE_C_STANDARD)
   set(CMAKE_C_STANDARD 99)
@@ -61,24 +69,21 @@ target_include_directories(${server_library_name} PRIVATE
   <BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   <INSTALL_INTERFACE:include>)
 
-# Fix - use a better way to find these
+include_directories(
+  $ENV{SPEECH_SDK_PATH}/include/cxx_api
+  $ENV{SPEECH_SDK_PATH}/include/c_api)
+
 if( ${CMAKE_HOST_SYSTEM_PROCESSOR} STREQUAL "aarch64" )
-	# Rpi4
-	include_directories(/home/ubuntu/ms_voice/speechsdk/include/cxx_api
-	  /home/ubuntu/ms_voice/speechsdk/include/c_api)
 	target_link_libraries(${server_library_name}
-	  /home/ubuntu/ms_voice/speechsdk/lib/arm64/libMicrosoft.CognitiveServices.Speech.core.so
+    $ENV{SPEECH_SDK_PATH}/lib/arm64/libMicrosoft.CognitiveServices.Speech.core.so
 	  -lcrypto
 	  -lpulse-simple -lpulse)
 else()
-	#laptop
-	include_directories(/home/elsabot/ms_voice/speechsdk/include/cxx_api
-  	  /home/elsabot/ms_voice/speechsdk/include/c_api)
 	target_link_libraries(${server_library_name}
-  		/home/elsabot/ms_voice/speechsdk/lib/x64/libMicrosoft.CognitiveServices.Speech.core.so
-  		-lcrypto
-  	  -lpulse-simple -lpulse) 
-#  		-l:libasound.so.2)
+    $ENV{SPEECH_SDK_PATH}/lib/x64/libMicrosoft.CognitiveServices.Speech.core.so
+  	-lcrypto
+  	-lpulse-simple -lpulse) 
+#  -l:libasound.so.2)
 endif()
 
 ament_target_dependencies(${server_library_name}
